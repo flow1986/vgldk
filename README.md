@@ -49,6 +49,13 @@ register A instead of the stack. See `examples/keyboard_test_gl6000sl/` for a sm
 raw matrix state, scancode, keycode and decoded charcode for every key press - useful for verifying keyboard
 drivers/mappings on real hardware. `tools/mame_debug/` also has a MAME Lua script for tracing keyboard port I/O.
 
+The test cart was also used to verify the German GL6000SL-specific mappings for `ue` (0x04), `oe` (0x2d) and
+`ae` (0x35), as well as the dual-label keys Help/Player 1, Right/Player 2 and Insert/Delete. The driver now
+includes those mappings and a preliminary ALT calculator-symbol map based on the red keycap labels. The latter
+still needs confirmation on real hardware. `FONT_FULL_ASCII` must be defined before including `vgldk.h` when an
+application needs the optional CP437 glyphs used for umlauts and calculator symbols; not all font/display paths
+have been verified to render those glyphs yet.
+
 ## Getting started
 * Clone this repo to some nice place
 * Make sure you have SDCC (Small Devices C Compiler) installed

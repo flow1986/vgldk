@@ -106,6 +106,8 @@ __endasm;
 #define KEY_ACTIVITY_TRIVIA 0x83
 #define KEY_ACTIVITY_LOGIC 0x84
 #define KEY_ACTIVITY_BUSINESS 0x85
+#define KEY_PLAYER1 (char)0x86
+#define KEY_PLAYER2 (char)0x87
 #define KEY_CARTRIDGE 254
 
 #define KEY_OFF 'O'
@@ -114,19 +116,32 @@ __endasm;
 #define KEY_CAPS 'C'
 #define KEY_LEFT_SHIFT 'S'
 #define KEY_RIGHT_SHIFT 'T'
+#define KEY_DELETE (char)0x7f
+
+// German umlauts. These are CP437 code points (as used by the LCD font bitmaps) - the LCD driver
+// needs FONT_FULL_ASCII defined to actually have glyphs for codes above 0x7f.
+#define KEY_UE (char)0x81	// small u-umlaut
+#define KEY_AE (char)0x84	// small a-umlaut
+#define KEY_OE (char)0x94	// small o-umlaut
+#define KEY_UE_UPPER (char)0x9a
+#define KEY_AE_UPPER (char)0x8e
+#define KEY_OE_UPPER (char)0x99
 
 typedef byte keycode_t;
 typedef byte scancode_t;
 
 // Map SCANCODE to KEYCODE (which can or can't be the final charcode)
+// Verified against a real GERMAN GL6000SL (2026-09): scancodes 0x04, 0x2d, 0x35 are the German
+// keycaps "\xfc" (ue), "\xf6" (oe), "\xe4" (ae) - NOT the '(' / '\\' / '/' this table (copied from
+// an English-layout MAME reference) previously assumed.
 const keycode_t KEY_CODES[8*8*2] = {
-	KEY_MOUSE_LMB,  '1', '9', 'e', '(', 'g', KEY_LEFT_SHIFT, ',',
+	KEY_MOUSE_LMB,  '1', '9', 'e', KEY_UE, 'g', KEY_LEFT_SHIFT, ',',
 	KEY_MOUSE_RMB,  '2', '0', 'r', '+', 'h', 'z', '.',
 	KEY_TOUCH_UP ,  '3', '\'', 't', KEY_INSERT, 'j', 'x', '-',
 	KEY_TOUCH_LMB,  '4', ')', 'y', KEY_CAPS, 'k', 'c', KEY_UP,
 	KEY_TOUCH_RMB,  '5', KEY_BACKSPACE, 'u', 'a', 'l', 'v', KEY_RIGHT_SHIFT,
-	KEY_TOUCH_DOWN, '6', KEY_ESCAPE, 'i', 's', '\\', 'b', KEY_HELP,
-	                '?', '7', 'q', 'o', 'd', '/', 'n', KEY_SYMBOL, 
+	KEY_TOUCH_DOWN, '6', KEY_ESCAPE, 'i', 's', KEY_OE, 'b', KEY_HELP,
+	                '?', '7', 'q', 'o', 'd', KEY_AE, 'n', KEY_SYMBOL,
 	KEY_OFF,        '8', 'w', 'p', 'f', KEY_ENTER, 'm', KEY_ANSWER,
 	
 	KEY_SPACE, KEY_ACTIVITY_WORDGAMES, KEY_PLAYER, 0,0,0,0,0,
@@ -147,7 +162,7 @@ typedef struct {
 } keycode_shift_t;
 
 // German
-#define KEY_MAP_SHIFT_SIZE 17
+#define KEY_MAP_SHIFT_SIZE 20
 const keycode_shift_t KEY_MAP_SHIFT[KEY_MAP_SHIFT_SIZE] = {
 	{'1',	'!'},
 	{'2',	'"'},
@@ -162,12 +177,16 @@ const keycode_shift_t KEY_MAP_SHIFT[KEY_MAP_SHIFT_SIZE] = {
 	{',',	';'},
 	{'.',	':'},
 	{'-',	'_'},
-	{'�',	'�'},
-	{'�',	'�'},
-	{'�',	'�'},
+	{KEY_UE,	KEY_UE_UPPER},
+	{KEY_AE,	KEY_AE_UPPER},
+	{KEY_OE,	KEY_OE_UPPER},
 	//{KEY_CURSOR_LEFT,	'<'},
 	//{KEY_CURSOR_RIGHT,	'>'},
 	{KEY_ENTER,	'\n'},
+	// Dual-labeled keys (second line on the keycap, reached via Shift):
+	{KEY_HELP,	KEY_PLAYER1},	// scancode 0x2f: "Hilfe" (base) / "Spieler 1" (shift)
+	{KEY_RIGHT,	KEY_PLAYER2},	// scancode 0x68: "Pfeil rechts" (base) / "Spieler 2" (shift)
+	{KEY_INSERT,	KEY_DELETE},	// scancode 0x14: "Einfg" (base) / "Entf" (shift) - swap if backwards
 };
 
 /*
@@ -185,6 +204,52 @@ const char KEY_MAP_SHIFT_TO[KEY_MAP_SHIFT_SIZE] = {
 };
 */
 
+// Some keys have a second, red-printed row of math symbols (e.g. for a built-in calculator mode),
+// presumably reached via the ALT key. UNVERIFIED - only reported from the keycap printing, not
+// confirmed to actually be triggered by ALT on real hardware yet. Multi-letter functions (sin,
+// cos, ...) have no single displayable glyph, so they get placeholder byte codes here for
+// application code to interpret (not meant to be put on screen directly via putchar()).
+#define KEY_CALC_UNKNOWN (char)0xb0	// 'e' key - unclear what symbol this is meant to be
+#define KEY_CALC_SIN     (char)0xb1
+#define KEY_CALC_COS     (char)0xb2
+#define KEY_CALC_TAN     (char)0xb3
+#define KEY_CALC_ATN     (char)0xb4
+#define KEY_CALC_LN      (char)0xb5
+#define KEY_CALC_EXP     (char)0xb6	// e^x
+#define KEY_CALC_LOG10   (char)0xb7
+#define KEY_CALC_MIN     (char)0xb8	// memory min?
+#define KEY_CALC_MR      (char)0xb9	// memory recall
+#define KEY_CALC_MPLUS   (char)0xba	// memory +
+#define KEY_CALC_MMINUS  (char)0xbb	// memory -
+#define KEY_CALC_AC      (char)0xbc	// all clear
+#define KEY_CALC_SQRT    (char)0xfb	// CP437 square root
+#define KEY_CALC_SQUARE  (char)0xfd	// CP437 superscript 2
+#define KEY_CALC_PI      (char)0xe3	// CP437 pi
+#define KEY_CALC_DIV     (char)0xf6	// CP437 division sign
+
+#define KEY_MAP_ALT_SIZE 20
+const keycode_shift_t KEY_MAP_ALT[KEY_MAP_ALT_SIZE] = {
+	{'q', KEY_CALC_SQRT},
+	{'w', KEY_CALC_SQUARE},
+	{'e', KEY_CALC_UNKNOWN},
+	{'r', KEY_CALC_SIN},
+	{'t', KEY_CALC_COS},
+	{'z', KEY_CALC_TAN},
+	{'u', KEY_CALC_ATN},
+	{'i', KEY_CALC_LN},
+	{'o', KEY_CALC_EXP},
+	{'p', KEY_CALC_LOG10},
+	{'a', KEY_CALC_PI},
+	{'s', '+'},
+	{'d', '-'},
+	{'f', '*'},
+	{'g', KEY_CALC_DIV},
+	{'h', KEY_CALC_MIN},
+	{'j', KEY_CALC_MR},
+	{'k', KEY_CALC_MPLUS},
+	{'l', KEY_CALC_MMINUS},
+	{KEY_OE, KEY_CALC_AC},
+};
 #define KEYBOARD_PRESSED_MAX 6
 #define KEYBOARD_BUFFER_MAX 8
 #define KEYBOARD_SCANCODE_INVALID 0xff
@@ -385,6 +450,20 @@ void keyboard_update() {
 				putchar('$');
 				#endif
 				charcode = keycode - 'a' + 0x01;
+			} else
+			if ((keyboard_modifiers & KEYBOARD_MODIFIER_ALT) > 0) {
+				// Alt: red-printed calculator/math symbols (see KEY_MAP_ALT - unverified guess)
+				#ifdef KEYBOARD_DEBUG
+				putchar('A');
+				#endif
+				charcode = keycode;	// Start with default (unmapped alt keys pass through)
+
+				for (j = 0; j < KEY_MAP_ALT_SIZE; j++) {
+					if (keycode == KEY_MAP_ALT[j].key_from) {
+						charcode = KEY_MAP_ALT[j].char_to;
+						break;
+					}
+				}
 			} else
 			if ((keyboard_modifiers & KEYBOARD_MODIFIER_SHIFT) > 0) {
 				// Shift

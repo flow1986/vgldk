@@ -14,6 +14,9 @@
 	
 	2026 HotKey
 */
+// Needed so the LCD font actually has glyphs for the German umlauts (CP437 codes 0x80-0xff),
+// otherwise keycode/charcode values above 0x7f always render as a blank/unknown glyph.
+#define FONT_FULL_ASCII
 
 #include <vgldk.h>
 #include <stdiomin.h>
@@ -85,7 +88,7 @@ void main() {
 			
 			putchar(' ');
 			putchar('\'');
-			if ((keycode >= 0x20) && (keycode < 0x7f)) {
+			if ((keycode >= 0x20) && (keycode != 0x7f)) {
 				putchar(keycode);
 			} else {
 				putchar('?');
@@ -104,7 +107,7 @@ void main() {
 			printf_x2(c);
 			putchar(' ');
 			putchar('\'');
-			if ((c >= 0x20) && (c < 0x7f)) {
+			if ((c >= 0x20) && (c != 0x7f)) {
 				putchar(c);
 			} else {
 				putchar('?');
