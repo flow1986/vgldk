@@ -63,6 +63,9 @@ change that result. It is therefore kept only as an isolated experiment in `exam
 not in the shared keyboard driver. The actual hardware power-latch protocol used by the stock firmware remains
 to be reverse-engineered.
 
+A complete record of the keyboard investigation, confirmed mappings, build requirements and remaining open
+hardware questions is in [GL6000SL keyboard session notes](info/2026-09-15_gl6000sl_keyboard_session.md).
+
 ## Getting started
 * Clone this repo to some nice place
 * Make sure you have SDCC (Small Devices C Compiler) installed
