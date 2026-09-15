@@ -56,6 +56,13 @@ still needs confirmation on real hardware. `FONT_FULL_ASCII` must be defined bef
 application needs the optional CP437 glyphs used for umlauts and calculator symbols; not all font/display paths
 have been verified to render those glyphs yet.
 
+The physical OFF key is matrix scancode 0x38. A GL6000SL bank-controller write `OUT 0x55,0xfc` was observed in
+an earlier experiment to blank the screen, but testing it from an autostart cartridge only produces a brief
+screen flicker before the system comes back. Adding `DI` and a permanent `HALT` loop after the write did not
+change that result. It is therefore kept only as an isolated experiment in `examples/keyboard_test_gl6000sl/`,
+not in the shared keyboard driver. The actual hardware power-latch protocol used by the stock firmware remains
+to be reverse-engineered.
+
 ## Getting started
 * Clone this repo to some nice place
 * Make sure you have SDCC (Small Devices C Compiler) installed

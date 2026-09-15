@@ -64,7 +64,7 @@ if not ok_r then
 	log("install_read_tap failed: " .. tostring(err_r))
 end
 
--- Hold a key down for the whole run using natkeyboard (works once real video frames are
+-- Hold a key down for the whole run using natkeyboard:post_coded() (works once real video frames are
 -- being processed, e.g. under Xvfb - "-video none" was found to suppress input polling
 -- entirely, so a previous attempt using ioport field:set_value() never took effect either).
 local hold_key = os.getenv("KB_TRACE_KEY")
@@ -82,11 +82,11 @@ emu.register_frame_done(function()
 	frame_count = frame_count + 1
 
 	if hold_key and frame_count >= 120 and post_count < 120 then
-		local ok, err = pcall(function() manager.machine.natkeyboard:post(hold_key) end)
+		local ok, err = pcall(function() manager.machine.natkeyboard:post_coded(hold_key) end)
 		if ok then
 			post_count = post_count + 1
 			if post_count == 1 then
-				log(string.format("=== started posting key '%s' via natkeyboard at frame %d ===", hold_key, frame_count))
+				log(string.format("=== started posting coded key '%s' via natkeyboard at frame %d ===", hold_key, frame_count))
 			end
 		else
 			log("natkeyboard post failed: " .. tostring(err))

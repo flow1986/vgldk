@@ -22,6 +22,20 @@
 #include <stdiomin.h>
 #include <hex.h>	// for printf_x2()
 
+// Observed in examples/agi/2do_vtech_AGI.txt on GL6000SL: this bank-controller
+// value powers the system off. Do not return afterward: continuing the autostart
+// cart can immediately restore the video/power-controller state.
+void power_off() __naked {
+__asm
+	ld	a, #0xfc
+	out	(0x55), a
+	di
+1$:
+	halt
+	jr	1$
+__endasm;
+}
+
 // Must match the working examples (e.g. raycast, hello): a "cart" is entered via `jp _main`
 // (not `call`), so main() must take no parameters and not expect a return address on the stack.
 void main() {
@@ -74,6 +88,9 @@ void main() {
 		
 		// Deactivate matrix (idle / all rows high)
 		keyboard_matrix_out(0xff);
+
+	// OFF is a regular matrix key (scancode 0x38); try the GL6000SL-specific power value.
+	if (scancode == 0x38) power_off();
 		
 		putchar('\n');
 		
