@@ -40,12 +40,13 @@ __sfr __at KEYBOARD_PORT_COL_IN2 keyboard_port_r2;
 // Keyboard matrix write
 void keyboard_matrix_out(byte a) __naked {(void)a;
 __asm
-	; Get parameter from stack into a
-	ld hl,#0x0002
-	add hl,sp
-	ld a,(hl)
-	
-	; Put it to port
+	; NOTE: with this SDCC version/target, a single byte parameter to a __naked function
+	; arrives in register A directly - it is NOT pushed onto the stack. (Verified via
+	; disassembly: callers do "ld a, <value>" then "call _keyboard_matrix_out" with nothing
+	; pushed for the argument.) The previous "ld hl,#2; add hl,sp; ld a,(hl)" stack-fetch trick
+	; therefore read garbage/leftover stack bytes instead of the real value, which broke row
+	; selection for every caller (keyboard_ispressed(), keyboard_update(), etc.) with no error
+	; or warning - it silently scanned bogus rows every time.
 	out	(KEYBOARD_PORT_ROW_OUT), a	; 0x40
 	ret
 __endasm;
@@ -150,7 +151,7 @@ typedef struct {
 const keycode_shift_t KEY_MAP_SHIFT[KEY_MAP_SHIFT_SIZE] = {
 	{'1',	'!'},
 	{'2',	'"'},
-	{'3',	'ß'},
+	{'3',	'ï¿½'},
 	{'4',	'$'},
 	{'5',	'%'},
 	{'6',	'&'},
@@ -161,9 +162,9 @@ const keycode_shift_t KEY_MAP_SHIFT[KEY_MAP_SHIFT_SIZE] = {
 	{',',	';'},
 	{'.',	':'},
 	{'-',	'_'},
-	{'ä',	'Ä'},
-	{'ü',	'Ü'},
-	{'ö',	'Ö'},
+	{'ï¿½',	'ï¿½'},
+	{'ï¿½',	'ï¿½'},
+	{'ï¿½',	'ï¿½'},
 	//{KEY_CURSOR_LEFT,	'<'},
 	//{KEY_CURSOR_RIGHT,	'>'},
 	{KEY_ENTER,	'\n'},
@@ -172,13 +173,13 @@ const keycode_shift_t KEY_MAP_SHIFT[KEY_MAP_SHIFT_SIZE] = {
 /*
 const keycode_t KEY_MAP_SHIFT_FROM[KEY_MAP_SHIFT_SIZE] = {
 	'1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-	',', '.', '-', 'ä', 'ü', 'ö',
+	',', '.', '-', 'ï¿½', 'ï¿½', 'ï¿½',
 	//KEY_CURSOR_LEFT,	KEY_CURSOR_RIGHT,
 	KEY_ENTER,
 };
 const char KEY_MAP_SHIFT_TO[KEY_MAP_SHIFT_SIZE] = {
-	'!', '"', 'ß', '$', '%', '&', '/', '(', ')', '=',
-	';', ':', '_', 'Ä', 'Ü', 'Ö',
+	'!', '"', 'ï¿½', '$', '%', '&', '/', '(', ')', '=',
+	';', ':', '_', 'ï¿½', 'ï¿½', 'ï¿½',
 	//'<', '>',
 	'\n',
 };

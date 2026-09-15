@@ -36,6 +36,19 @@ Newer models ("CX" series, circa 1999 onward) use a completely different system 
 * include: Hardware drivers and a rudimentary libc environment
 * tools: Scripts that help development
 
+## Recent fix: gl6000sl keyboard driver returned garbage row-select values
+The `keyboard_matrix_out()` function in `include/arch/gl6000sl/keyboard.h` (used by every GL6000SL/7007SL/Prestige
+keyboard read - `keyboard_ispressed()`, `keyboard_update()`, `keyboard_inkey()`, ...) fetched its byte parameter
+from the stack (`ld hl,#2; add hl,sp; ld a,(hl)`), assuming SDCC always pushes function arguments onto the stack.
+With the SDCC version now in use, a single byte parameter to a `__naked` function is instead passed directly in
+register A and never pushed - so the function was reading leftover/garbage stack bytes instead of the intended
+row-select value on every single call. This silently broke keyboard input on real hardware (and in MAME): most
+keys did nothing, some produced seemingly random/ghosted scancodes, and games like the raycast demo effectively
+read noise (which happened to often decode as "turn left"). Fixed by reading the parameter straight from
+register A instead of the stack. See `examples/keyboard_test_gl6000sl/` for a small cart that live-displays the
+raw matrix state, scancode, keycode and decoded charcode for every key press - useful for verifying keyboard
+drivers/mappings on real hardware. `tools/mame_debug/` also has a MAME Lua script for tracing keyboard port I/O.
+
 ## Getting started
 * Clone this repo to some nice place
 * Make sure you have SDCC (Small Devices C Compiler) installed
