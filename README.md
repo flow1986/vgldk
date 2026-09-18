@@ -66,6 +66,36 @@ to be reverse-engineered.
 A complete record of the keyboard investigation, confirmed mappings, build requirements and remaining open
 hardware questions is in [GL6000SL keyboard session notes](info/2026-09-15_gl6000sl_keyboard_session.md).
 
+## Recent addition: sprite-based tile games and real-time WASD input
+Two new GL6000SL cart examples show how to build a small tile/sprite game instead of a text-mode demo:
+`examples/roguelike/` (turn-based rogue-like with patrolling monsters and a simplified fight) and
+`examples/pacman/` (real-time Pac-Man clone with a proper maze, wrap-around side tunnels, power pellets that
+freeze the ghosts for a while, lives and a restart menu). Both share the same low-level approach and are a good
+starting point for the next tile-based game:
+
+* **Byte-aligned sprite blitting**: tiles are fixed at 8x8 pixels and the grid's pixel origin (`GRID_X`) is kept
+  a multiple of 8, so every tile occupies exactly one framebuffer byte per row. This lets `draw_tile()` just
+  copy 8 raw bytes per sprite straight into the framebuffer (`lcd_addr + row*LCD_SCANLINE_SIZE + column_byte`)
+  with no bit-shifting - much simpler and faster than `lcd_draw_glypth_at()`'s arbitrary-x text rendering.
+* **Two different input styles, both needed**:
+  * `keyboard_getchar()` / `keyboard_inkey()` are **edge-triggered** (fire once per physical keypress, no
+    typematic repeat) - fine for turn-based games (`examples/roguelike/`) where one keypress = one move.
+  * For **real-time/continuous** movement (`examples/pacman/`), poll the *currently held* keys instead: call
+    `keyboard_update()` once per tick, then check the live `keyboard_pressed[]` scancode array (e.g.
+    `KEY_CODES[keyboard_pressed[i]] == 'd'`). This is level-triggered and lets Pac-Man keep gliding in the last
+    chosen direction without requiring a fresh keypress every tile, and also enables a debounced "confirm"
+    button (see `wait_for_enter()` in `examples/pacman/pacman.c`) for game-over/restart menus.
+  * There is no hardware timer/millis() used here - `pacman.c`'s `delay()` is a plain busy-wait (nop loop) and
+    `FRAME_DELAY`/`PLAYER_TICKS`/`GHOST_TICKS` are untuned guesses; they will very likely need adjusting once
+    tested on real hardware or in MAME, since busy-wait timing differs between emulation and real Z80 speed.
+* **`void main()` (no `__naked`, no params) with local variables works fine** for cart targets, matching
+  `raycast.mahnke.c` - only the no-args/no-return-value signature matters (see the `main()` pitfall noted in
+  `info/2026-09-15_gl6000sl_keyboard_session.md`), `__naked` itself is not required.
+
+Prebuilt 8KB cart binaries for the three game examples (`raycast`, `roguelike`, `pacman`) are committed under
+each `examples/*/out/*.cart.*kb.bin` (normally `**/out` is gitignored as a build directory; these three are
+force-added on purpose so they can be loaded straight into MAME/real hardware without a local SDCC toolchain).
+
 ## Getting started
 * Clone this repo to some nice place
 * Make sure you have SDCC (Small Devices C Compiler) installed
