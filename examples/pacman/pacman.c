@@ -107,7 +107,7 @@ const byte sprite_ghost_frozen[TILE] = {
 
 // How many main-loop ticks make up one tile-step. Tune these if the game
 // feels too fast/slow on real hardware vs. MAME.
-#define FRAME_DELAY 300		// busy-wait length per tick (see delay())
+#define FRAME_DELAY 3000		// busy-wait length per tick (see delay())
 #define PLAYER_TICKS 3		// Pac-Man moves one tile every N ticks
 #define GHOST_TICKS 4		// ghosts move one tile every M ticks (slower than Pac-Man)
 #define FREEZE_TICKS 60		// how many main-loop ticks a power pellet freezes the ghosts for
@@ -137,6 +137,15 @@ typedef struct {
 } t_ghost;
 
 t_ghost ghosts[NUM_GHOSTS];
+
+// Previous actor positions used by the incremental renderer.
+byte render_ready;
+byte old_player_x, old_player_y;
+byte old_ghost_x[NUM_GHOSTS];
+byte old_ghost_y[NUM_GHOSTS];
+byte old_frozen;
+byte old_dots_left;
+byte old_player_lives;
 
 // Home tiles inside the ghost house, used both for the initial setup and to
 // send a ghost back "home" after Pac-Man eats it while it's frozen.
@@ -377,35 +386,69 @@ void ghosts_tick(void) {
 	}
 }
 
-void render(void) {
-	byte x, y;
+void render_cell(byte x, byte y) {
 	byte i;
 
-	for (y = 0; y < MAP_H; y++) {
-		for (x = 0; x < MAP_W; x++) {
-			if (map[y][x] == T_WALL) {
-				draw_tile(x, y, sprite_wall);
-			} else if (dots[y][x]) {
-				draw_tile(x, y, sprite_dot);
-			} else {
-				draw_tile(x, y, sprite_floor);
-			}
-		}
-	}
+	if (map[y][x] == T_WALL) draw_tile(x, y, sprite_wall);
+	else if (dots[y][x]) draw_tile(x, y, sprite_dot);
+	else draw_tile(x, y, sprite_floor);
 
 	for (i = 0; i < NUM_PELLETS; i++) {
-		if (pellet_alive[i]) draw_tile(pellet_x[i], pellet_y[i], sprite_pellet);
+		if (pellet_alive[i] && pellet_x[i] == x && pellet_y[i] == y)
+			draw_tile(x, y, sprite_pellet);
 	}
 
 	for (i = 0; i < NUM_GHOSTS; i++) {
-		draw_tile(ghosts[i].x, ghosts[i].y, (freeze_timer > 0) ? sprite_ghost_frozen : ghosts[i].sprite);
+		if (ghosts[i].x == x && ghosts[i].y == y)
+			draw_tile(x, y, (freeze_timer > 0) ? sprite_ghost_frozen : ghosts[i].sprite);
 	}
 
-	draw_tile(player_x, player_y, (facing == DIR_LEFT) ? sprite_pacman_left : sprite_pacman_right);
+	if (player_x == x && player_y == y)
+		draw_tile(x, y, (facing == DIR_LEFT) ? sprite_pacman_left : sprite_pacman_right);
+}
 
-	print_text(0, 0, "Dots:      Lives: ");
-	print_byte2(5, 0, dots_left);
-	print_byte1(18, 0, player_lives);
+void render(void) {
+	byte x, y;
+	byte i;
+	byte frozen;
+	byte first_render;
+
+	frozen = (freeze_timer > 0);
+	first_render = !render_ready;
+	if (first_render) {
+		for (y = 0; y < MAP_H; y++)
+			for (x = 0; x < MAP_W; x++)
+				render_cell(x, y);
+		render_ready = 1;
+	} else {
+		// Redraw only cells affected by actor movement or a sprite-state change.
+		render_cell(old_player_x, old_player_y);
+		render_cell(player_x, player_y);
+		for (i = 0; i < NUM_GHOSTS; i++) {
+			render_cell(old_ghost_x[i], old_ghost_y[i]);
+			render_cell(ghosts[i].x, ghosts[i].y);
+		}
+		if (frozen != old_frozen) {
+			for (i = 0; i < NUM_GHOSTS; i++)
+				render_cell(ghosts[i].x, ghosts[i].y);
+		}
+	}
+
+	if (first_render || dots_left != old_dots_left || player_lives != old_player_lives) {
+		print_text(0, 0, "Dots:      Lives: ");
+		print_byte2(5, 0, dots_left);
+		print_byte1(18, 0, player_lives);
+	}
+
+	old_player_x = player_x;
+	old_player_y = player_y;
+	for (i = 0; i < NUM_GHOSTS; i++) {
+		old_ghost_x[i] = ghosts[i].x;
+		old_ghost_y[i] = ghosts[i].y;
+	}
+	old_frozen = frozen;
+	old_dots_left = dots_left;
+	old_player_lives = player_lives;
 }
 
 void init_game(void) {
@@ -466,6 +509,7 @@ void main() {
 
 	lcd_clear();
 	init_game();
+	render_ready = 0;
 	tick = 0;
 
 	while (1) {
@@ -496,6 +540,7 @@ void main() {
 					show_game_over_menu("GAME OVER!");
 					lcd_clear();
 					init_game();
+					render_ready = 0;
 					tick = 0;
 					continue;
 				}
@@ -509,6 +554,7 @@ void main() {
 			show_game_over_menu("GEWONNEN!");
 			lcd_clear();
 			init_game();
+			render_ready = 0;
 			tick = 0;
 			continue;
 		}

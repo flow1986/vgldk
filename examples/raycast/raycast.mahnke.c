@@ -33,7 +33,7 @@
 	// GL6000SL defaults to GFX mode (although it can also do text mode)
 	#define GFX_MODE
 	
-	//#define GFX_BLOCKY	// Use simple/fast byte-wise mode (8th of the horiz. resolution, but patterns)
+	#define GFX_BLOCKY	// Use simple/fast byte-wise mode (8th of the horiz. resolution, but patterns)
 	
 	#ifdef GFX_BLOCKY
 		// We are drawing 8 bits at a time
@@ -899,8 +899,15 @@ void drawScreen() {
 #define lcd_x lcd_text_col
 #define lcd_y lcd_text_row
 
+byte key_held(char key) {
+	byte i;
+	for (i = 0; i < keyboard_num_pressed; i++) {
+		if (KEY_CODES[keyboard_pressed[i]] == key) return 1;
+	}
+	return 0;
+}
+
 void main() {
-	char c;
 	signed char move_a;	// Rotation
 	signed char move_x;	// Strafe
 	signed char move_z;	// Move forward
@@ -937,58 +944,18 @@ void main() {
 		lcd_x = 8; lcd_y = 0;	printf_d(player_a);
 		
 		
-		// Check keyboard
+		// Check all currently held keys; getchar() would require a release
+		// and press for every movement step.
+		keyboard_update();
 		move_a = 0;
 		move_x = 0;
 		move_z = 0;
-		
-		c = getchar();
-		switch(c) {
-			case 'a':
-			case 'A':
-			#ifdef KEY_CURSOR_LEFT
-			case KEY_CURSOR_LEFT:
-			#endif
-			#ifdef KEY_LEFT
-			case KEY_LEFT:
-			#endif
-				move_a = -1;
-				break;
-			case 'd':
-			case 'D':
-			#ifdef KEY_CURSOR_RIGHT
-			case KEY_CURSOR_RIGHT:
-			#endif
-			#ifdef KEY_RIGHT
-			case KEY_RIGHT:
-			#endif
-				move_a = 1;
-				break;
-			
-			case 'w':
-			case 'W':
-			#ifdef KEY_UP
-			case KEY_UP:
-			#endif
-				move_z = 1;
-				break;
-			case 's':
-			case 'S':
-			#ifdef KEY_DOWN
-			case KEY_DOWN:
-			#endif
-				move_z = -1;
-				break;
-			
-			case 'n':
-			case 'N':
-				move_x = -1;
-				break;
-			case 'm':
-			case 'M':
-				move_x = 1;
-				break;
-		}
+		if (key_held('a') || key_held('A') || key_held(KEY_LEFT)) move_a = -1;
+		if (key_held('d') || key_held('D') || key_held(KEY_RIGHT)) move_a = 1;
+		if (key_held('w') || key_held('W') || key_held(KEY_UP)) move_z = 1;
+		if (key_held('s') || key_held('S') || key_held(KEY_DOWN)) move_z = -1;
+		if (key_held('q') || key_held('Q') || key_held('n') || key_held('N')) move_x = -1;
+		if (key_held('e') || key_held('E') || key_held('m') || key_held('M')) move_x = 1;
 		
 		
 		// Handle movement
