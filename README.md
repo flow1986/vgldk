@@ -1,3 +1,8 @@
+edited with GitHub Copilot.
+
+see changes in this readme and my session overviews in tool.
+
+
 ![VGLDK Logo](/info/VGLDKLogo.svg)
 
 VTech Genius Leader Development Kit - an unofficial software development kit (SDK) for Z80 based VTech "Genius LEADER" learning computers (aka. "PreComputer", "YENO MisterX", "Genio" or "Compusavant").
