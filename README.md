@@ -1,6 +1,6 @@
 edited with GitHub Copilot.
 
-see changes in this readme and my session overviews in tool.
+see changes in this readme and my session overviews in info folder.
 
 
 ![VGLDK Logo](/info/VGLDKLogo.svg)
