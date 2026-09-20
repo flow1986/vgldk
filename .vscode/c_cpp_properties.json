@@ -1,0 +1,16 @@
+{
+	"configurations": [
+		{
+			"name": "vgldk-gl6000sl",
+			"includePath": [
+				"${workspaceFolder}/include",
+				"${workspaceFolder}/include/arch/gl6000sl"
+			],
+			"defines": [
+				"VGLDK_SERIES=6000"
+			],
+			"cStandard": "c99"
+		}
+	],
+	"version": 4
+}
