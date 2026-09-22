@@ -105,3 +105,35 @@ an 8KB one. Verified with `make cart` after every round of changes in this
 session; only warning is a pre-existing, unrelated one from
 `include/arch/gl6000sl/lcd.h`. `esp_basic_store.ino` could not be compiled in
 this session (no ESP8266/ESP32 Arduino core installed in the sandbox).
+
+## Follow-up: keyboard symbols and manual sprite test
+
+The GL6000SL symbol-shift codes for the comma and period keys were verified on
+hardware: 204 is mapped to `<` and 206 to `>`. `examples/basic/basic.c` now
+translates these codes in BASIC keyboard input paths so comparison operators
+can be entered in the line editor and returned by `KEY()`.
+
+The built-in LOAD seed programs were removed again after testing because they
+made the real cartridge unusable on the target. LOAD is therefore only the
+ordinary RAM backup slot; no demo is embedded in the cartridge.
+
+Minimal manual sprite test (not embedded in the cart):
+
+```basic
+10 CLS
+20 DEFSPRITE 0,0,18
+30 DEFSPRITE 0,1,3C
+40 DEFSPRITE 0,2,7E
+50 DEFSPRITE 0,3,FF
+60 DEFSPRITE 0,4,FF
+70 DEFSPRITE 0,5,7E
+80 DEFSPRITE 0,6,3C
+90 DEFSPRITE 0,7,18
+100 MOVESPRITE 0,0,40
+110 MOVESPRITE 0,SPRITEX(0)+2,SPRITEY(0)
+120 PAUSE 20
+130 GOTO 110
+```
+
+This deliberately short example moves the sprite automatically from left to
+right and is intended to be typed manually on the VTech.

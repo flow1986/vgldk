@@ -12,6 +12,7 @@
 		IF ... THEN <line> [ELSE <line>] | IF ... THEN <stmt>,
 		GOTO, GOSUB/RETURN, FOR/TO/STEP/NEXT, REM, END/STOP,
 		PEEK(addr)/POKE addr,val, PLOT x,y[,c], LINE x0,y0,x1,y1,
+		DEFSPRITE n,row,hex, DRAWSPRITE n,x,y[,c], MOVESPRITE n,x,y,
 		SOUND freq,len, BEEP, CLS, RND(n), ABS(n)
 		LIST, RUN, NEW, EDIT n, SAVE, LOAD (immediate commands)
 	Variables: 26 integers A..Z (single uppercase letter).
@@ -55,6 +56,12 @@ byte saved_program[PROGRAM_SIZE];	// backup slot used by SAVE/LOAD
 word saved_program_len;
 byte has_saved;
 
+#define SPRITE_COUNT 8
+#define SPRITE_ROWS 8
+byte sprite_data[SPRITE_COUNT][SPRITE_ROWS];
+byte sprite_x[SPRITE_COUNT];
+byte sprite_y[SPRITE_COUNT];
+
 int vars[26];	// variables A..Z
 
 byte running;		// RUN in progress?
@@ -64,6 +71,7 @@ byte jump_flag;		// set by GOTO/GOSUB/RETURN/NEXT to redirect the run loop
 byte *jump_target;	// where to jump to (points at a line's lineno-word)
 
 word rng_state = 1;
+byte key_last;
 
 // FOR/NEXT stack
 #define FOR_STACK_MAX 6
@@ -90,6 +98,60 @@ void exec_statement(char **pp);
 void print_int_signed(int v);
 void handle_input_line(char *line);
 void delay_nop(word n);
+
+byte hex_digit(char c) {
+	if (c >= '0' && c <= '9') return c - '0';
+	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+	return 0;
+}
+
+byte parse_hex_byte(char **pp) {
+	char *p = *pp;
+	byte value = 0;
+	byte digits = 0;
+
+	if (p[0] == '$') p++;
+	else if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) p += 2;
+	while (digits < 2 && ((p[0] >= '0' && p[0] <= '9') ||
+		(p[0] >= 'A' && p[0] <= 'F') || (p[0] >= 'a' && p[0] <= 'f'))) {
+		value = (value << 4) | hex_digit(*p++);
+		digits++;
+	}
+	*pp = p;
+	return value;
+}
+
+byte key_current() {
+	byte key;
+
+	key = keyboard_inkey();
+	if (key == 204) key = '<';
+	if (key == 206) key = '>';
+	if (key != KEY_CHARCODE_NONE) {
+		key_last = key;
+	} else if (!keyboard_ispressed()) {
+		key_last = KEY_CHARCODE_NONE;
+	}
+	return key_last;
+}
+
+byte basic_keyboard_inkey() {
+	byte key = keyboard_inkey();
+	if (key == 204) return '<';
+	if (key == 206) return '>';
+	return key;
+}
+
+byte check_break() {
+	keyboard_update();
+	if (keyboard_buffer_in != keyboard_buffer_out &&
+		keyboard_buffer[keyboard_buffer_out] == KEY_ESCAPE) {
+		keyboard_buffer_out = (keyboard_buffer_out + 1) % KEYBOARD_BUFFER_MAX;
+		return 1;
+	}
+	return 0;
+}
 
 
 // ---- Small helpers (no string.h on this toolchain) -----------------------
@@ -208,6 +270,69 @@ void draw_line(int x0, int y0, int x1, int y1, byte color) {
 	}
 }
 
+void draw_sprite(byte number, int x, int y, byte color) {
+	byte row, col;
+	byte bits;
+	if (number >= SPRITE_COUNT) return;
+	for (row = 0; row < SPRITE_ROWS; row++) {
+		bits = sprite_data[number][row];
+		for (col = 0; col < 8; col++) {
+			if (bits & (0x80 >> col)) plot_pixel(x + col, y + row, color);
+		}
+	}
+}
+
+void do_defsprite(char **pp) {
+	char *p = *pp;
+	int number, row;
+	skip_spaces(&p);
+	number = parse_expr(&p);
+	skip_spaces(&p); if (*p == ',') p++;
+	row = parse_expr(&p);
+	skip_spaces(&p); if (*p == ',') p++;
+	skip_spaces(&p);
+	if (number >= 0 && number < SPRITE_COUNT && row >= 0 && row < SPRITE_ROWS)
+		sprite_data[number][row] = parse_hex_byte(&p);
+	else
+		parse_hex_byte(&p);
+	*pp = p;
+}
+
+void do_drawsprite(char **pp) {
+	char *p = *pp;
+	int number, x, y, color = 1;
+	number = parse_expr(&p);
+	skip_spaces(&p); if (*p == ',') p++;
+	x = parse_expr(&p);
+	skip_spaces(&p); if (*p == ',') p++;
+	y = parse_expr(&p);
+	skip_spaces(&p);
+	if (*p == ',') { p++; color = parse_expr(&p); }
+	draw_sprite((byte)number, x, y, (byte)color);
+	if (number >= 0 && number < SPRITE_COUNT) {
+		sprite_x[number] = (byte)x;
+		sprite_y[number] = (byte)y;
+	}
+	*pp = p;
+}
+
+void do_movesprite(char **pp) {
+	char *p = *pp;
+	int number, x, y;
+	number = parse_expr(&p);
+	skip_spaces(&p); if (*p == ',') p++;
+	x = parse_expr(&p);
+	skip_spaces(&p); if (*p == ',') p++;
+	y = parse_expr(&p);
+	if (number >= 0 && number < SPRITE_COUNT) {
+		draw_sprite((byte)number, sprite_x[number], sprite_y[number], 0);
+		sprite_x[number] = (byte)x;
+		sprite_y[number] = (byte)y;
+		draw_sprite((byte)number, x, y, 1);
+	}
+	*pp = p;
+}
+
 
 // ---- Expression parser ------------------------------------------------
 // Grammar (top to bottom = lowest to highest precedence):
@@ -258,6 +383,26 @@ int parse_primary(char **pp) {
 		*pp = p;
 		return (v < 0) ? -v : v;
 	}
+	if (match_keyword(&p, "SPRITEX")) {
+		skip_spaces(&p);
+		if (*p == '(') p++;
+		v = parse_expr(&p);
+		skip_spaces(&p);
+		if (*p == ')') p++;
+		*pp = p;
+		if (v < 0 || v >= SPRITE_COUNT) return 0;
+		return sprite_x[v];
+	}
+	if (match_keyword(&p, "SPRITEY")) {
+		skip_spaces(&p);
+		if (*p == '(') p++;
+		v = parse_expr(&p);
+		skip_spaces(&p);
+		if (*p == ')') p++;
+		*pp = p;
+		if (v < 0 || v >= SPRITE_COUNT) return 0;
+		return sprite_y[v];
+	}
 	if (match_keyword(&p, "KEY")) {
 		// Non-blocking key read for games: 0 if nothing is currently
 		// pressed, else the charcode of the key - unlike INPUT/gets()
@@ -269,7 +414,7 @@ int parse_primary(char **pp) {
 			if (*p == ')') p++;
 		}
 		*pp = p;
-		return (int)keyboard_inkey();
+		return (int)key_current();
 	}
 	if (*p >= '0' && *p <= '9') {
 		v = 0;
@@ -566,7 +711,7 @@ void do_cload(char **pp) {
 	for (;;) {
 		c = softuart_receiveByte();
 		if (c < 0) {
-			if (keyboard_inkey() != KEY_CHARCODE_NONE) { printf("CANCELLED\n"); *pp = p; return; }
+			if (basic_keyboard_inkey() != KEY_CHARCODE_NONE) { printf("CANCELLED\n"); *pp = p; return; }
 			continue;
 		}
 		if (c == SERIAL_EOF) break;
@@ -854,7 +999,11 @@ void do_pause(char **pp) {
 	char *p = *pp;
 	int n;
 	n = parse_expr(&p);
-	while (n > 0) { delay_nop(200); n--; }
+	while (n > 0 && running) {
+		if (check_break()) { running = 0; break; }
+		delay_nop(200);
+		n--;
+	}
 	*pp = p;
 }
 
@@ -879,6 +1028,9 @@ void exec_statement(char **pp) {
 	if (match_keyword(&p, "POKE")) { do_poke(&p); *pp = p; return; }
 	if (match_keyword(&p, "PLOT")) { do_plot(&p); *pp = p; return; }
 	if (match_keyword(&p, "LINE")) { do_lineto(&p); *pp = p; return; }
+	if (match_keyword(&p, "DEFSPRITE")) { do_defsprite(&p); *pp = p; return; }
+	if (match_keyword(&p, "DRAWSPRITE")) { do_drawsprite(&p); *pp = p; return; }
+	if (match_keyword(&p, "MOVESPRITE")) { do_movesprite(&p); *pp = p; return; }
 	if (match_keyword(&p, "SOUND")) { do_sound(&p); *pp = p; return; }
 	if (match_keyword(&p, "BEEP")) { beep(); *pp = p; return; }
 	if (match_keyword(&p, "CLS")) { lcd_clear(); *pp = p; return; }
@@ -911,12 +1063,20 @@ void do_run() {
 	gosub_sp = 0;
 
 	while (running && p < program + program_len) {
+		if (check_break()) {
+			running = 0;
+			break;
+		}
 		line_start = p;
 		cur_line = p[0] | (p[1] << 8);
 		stp = (char *)(p + 2);
 		jump_flag = 0;
 
 		while (*stp && running) {
+			if (check_break()) {
+				running = 0;
+				break;
+			}
 			exec_statement(&stp);
 			if (jump_flag) break;
 			skip_spaces(&stp);
@@ -1009,7 +1169,7 @@ void input_line(char *buf, byte maxlen) {
 
 		if (blink_on) invert_cell(start_col + cur, start_row);
 
-		c = keyboard_inkey();
+		c = basic_keyboard_inkey();
 
 		if (blink_on) invert_cell(start_col + cur, start_row);	// undraw before redrawing text next loop
 
