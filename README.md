@@ -101,6 +101,29 @@ Prebuilt 8KB cart binaries for the three game examples (`raycast`, `roguelike`, 
 each `examples/*/out/*.cart.*kb.bin` (normally `**/out` is gitignored as a build directory; these three are
 force-added on purpose so they can be loaded straight into MAME/real hardware without a local SDCC toolchain).
 
+## Recent addition: a small line-numbered BASIC interpreter
+`examples/basic/` is a classic 1980s-style BASIC that runs standalone on the cartridge - type a line starting
+with a number (e.g. `10 PRINT "HI"`) to store it in the program, type a line without one to execute it right
+away. It's a "leichtes"/lightweight BASIC on purpose: `LET`(optional)/`PRINT`/`INPUT`, `IF ... THEN <line>|
+<stmt>`, `GOTO`, `GOSUB`/`RETURN`, `FOR`/`TO`/`STEP`/`NEXT`, `REM`, `END`/`STOP`, `PEEK(addr)`/`POKE addr,val`,
+`PLOT x,y[,c]`/`LINE x0,y0,x1,y1` for simple framebuffer drawing, `SOUND freq,len`/`BEEP`, `CLS`, `RND(n)`/
+`ABS(n)`, and `LIST`/`RUN`/`NEW`. Variables are 26 signed 16-bit integers (`A`-`Z`, no strings/arrays - keeps
+the interpreter small). The whole program is kept as plain text (2-byte line number + text per line, sorted,
+directly in a fixed RAM array - "im internen RAM"), and statements are re-parsed from that text every time
+they run instead of being compiled to bytecode - no dynamic memory needed, matching every other example here.
+`GOTO`/`GOSUB`/`RETURN`/`NEXT` all work by having the statement set a global "jump target" pointer that the
+main run loop picks up, and `FOR`/`GOSUB` resume execution at the start of the *next* program line rather than
+mid-line, so `FOR ... TO ... STEP` must be the last statement on its line - a deliberate simplification to
+avoid tracking mid-line resume points. `PLOT`/`LINE` reuse the same direct framebuffer bit-set technique as the
+sprite blitting in `examples/pacman/`/`examples/roguelike/` (see above). It also has `IF ... THEN <line> ELSE
+<line>`, `SAVE`/`LOAD` (a backup/undo RAM slot, not real EEPROM/filesystem persistence - there is no verified
+persistent storage driver for this hardware yet), and `EDIT n` to re-open an existing line for editing. The
+REPL's line editor supports LEFT/RIGHT arrow cursor movement and shows a blinking cursor block, both done by
+polling the already non-blocking `keyboard_inkey()` in a busy-wait loop (no hardware timer needed) and toggling
+an XOR'd character cell the same way `lcd_draw_glypth_at()` splits bits across byte boundaries for
+non-8-pixel-wide fonts. Builds as a 32KB cart (`CART_SIZE_KB = 32`, ~20KB used) since the full tokenizer/
+expression-parser/FOR-GOSUB-stack machinery no longer fits an 8KB one.
+
 ## Getting started
 * Clone this repo to some nice place
 * Make sure you have SDCC (Small Devices C Compiler) installed
