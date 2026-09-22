@@ -137,3 +137,9 @@ Minimal manual sprite test (not embedded in the cart):
 
 This deliberately short example moves the sprite automatically from left to
 right and is intended to be typed manually on the VTech.
+
+## Follow-up: paged LIST output
+
+`LIST` now pauses after every 15 program lines and displays `-- MORE --`.
+Any key continues the listing; the interrupt/ESC key stops it. This prevents
+long programs from scrolling past the entire screen before they can be read.

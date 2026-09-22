@@ -12,7 +12,7 @@
 		IF ... THEN <line> [ELSE <line>] | IF ... THEN <stmt>,
 		GOTO, GOSUB/RETURN, FOR/TO/STEP/NEXT, REM, END/STOP,
 		PEEK(addr)/POKE addr,val, PLOT x,y[,c], LINE x0,y0,x1,y1,
-		DEFSPRITE n,row,hex, DRAWSPRITE n,x,y[,c], MOVESPRITE n,x,y,
+		DEFSP n,row,hex, DRASP n,x,y[,c], MOVSP n,x,y,
 		SOUND freq,len, BEEP, CLS, RND(n), ABS(n)
 		LIST, RUN, NEW, EDIT n, SAVE, LOAD (immediate commands)
 	Variables: 26 integers A..Z (single uppercase letter).
@@ -110,6 +110,17 @@ byte parse_hex_byte(char **pp) {
 	char *p = *pp;
 	byte value = 0;
 	byte digits = 0;
+	byte binary = 1;
+	byte i;
+
+	for (i = 0; i < 8; i++) {
+		if (p[i] != '0' && p[i] != '1') { binary = 0; break; }
+	}
+	if (binary) {
+		for (i = 0; i < 8; i++) value = (value << 1) | (p[i] - '0');
+		*pp = p + 8;
+		return value;
+	}
 
 	if (p[0] == '$') p++;
 	else if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) p += 2;
@@ -383,7 +394,7 @@ int parse_primary(char **pp) {
 		*pp = p;
 		return (v < 0) ? -v : v;
 	}
-	if (match_keyword(&p, "SPRITEX")) {
+	if (match_keyword(&p, "SPX") || match_keyword(&p, "SPRITEX")) {
 		skip_spaces(&p);
 		if (*p == '(') p++;
 		v = parse_expr(&p);
@@ -393,7 +404,7 @@ int parse_primary(char **pp) {
 		if (v < 0 || v >= SPRITE_COUNT) return 0;
 		return sprite_x[v];
 	}
-	if (match_keyword(&p, "SPRITEY")) {
+	if (match_keyword(&p, "SPY") || match_keyword(&p, "SPRITEY")) {
 		skip_spaces(&p);
 		if (*p == '(') p++;
 		v = parse_expr(&p);
@@ -546,6 +557,34 @@ byte *next_line_ptr() {
 	return line_start + entry_len(line_start);
 }
 
+char hex_char(byte value) {
+	return (value < 10) ? ('0' + value) : ('A' + value - 10);
+}
+
+void normalize_defsprite(char *text) {
+	char *p = text;
+	byte value;
+	byte i;
+
+	skip_spaces(&p);
+	if (!match_keyword(&p, "DEFSP")) return;
+	while (*p && *p != ',') p++;
+	if (*p == 0) return;
+	p++;
+	while (*p && *p != ',') p++;
+	if (*p == 0) return;
+	p++;
+	skip_spaces(&p);
+	for (i = 0; i < 8; i++) {
+		if (p[i] != '0' && p[i] != '1') return;
+	}
+	value = 0;
+	for (i = 0; i < 8; i++) value = (value << 1) | (p[i] - '0');
+	p[0] = hex_char(value >> 4);
+	p[1] = hex_char(value & 0x0f);
+	memmove_local(p + 2, p + 8, strlen_local(p + 8) + 1);
+}
+
 void store_line(word ln, char *text) {
 	byte *p = program;
 	word cur;
@@ -610,6 +649,8 @@ void do_new() {
 void do_list() {
 	byte *q = program;
 	word ln;
+	byte page_lines = 0;
+	byte key;
 	while (q < program + program_len) {
 		ln = q[0] | (q[1] << 8);
 		print_int_signed((int)ln);
@@ -617,6 +658,16 @@ void do_list() {
 		printf((char *)(q + 2));
 		putchar('\n');
 		q += entry_len(q);
+		page_lines++;
+		if (page_lines >= 15 && q < program + program_len) {
+			printf("-- MORE --\n");
+			for (;;) {
+				key = basic_keyboard_inkey();
+				if (key != KEY_CHARCODE_NONE) break;
+			}
+			if (key == KEY_ESCAPE) break;
+			page_lines = 0;
+		}
 	}
 }
 
@@ -1028,9 +1079,9 @@ void exec_statement(char **pp) {
 	if (match_keyword(&p, "POKE")) { do_poke(&p); *pp = p; return; }
 	if (match_keyword(&p, "PLOT")) { do_plot(&p); *pp = p; return; }
 	if (match_keyword(&p, "LINE")) { do_lineto(&p); *pp = p; return; }
-	if (match_keyword(&p, "DEFSPRITE")) { do_defsprite(&p); *pp = p; return; }
-	if (match_keyword(&p, "DRAWSPRITE")) { do_drawsprite(&p); *pp = p; return; }
-	if (match_keyword(&p, "MOVESPRITE")) { do_movesprite(&p); *pp = p; return; }
+	if (match_keyword(&p, "DEFSP")) { do_defsprite(&p); *pp = p; return; }
+	if (match_keyword(&p, "DRASP")) { do_drawsprite(&p); *pp = p; return; }
+	if (match_keyword(&p, "MOVSP")) { do_movesprite(&p); *pp = p; return; }
 	if (match_keyword(&p, "SOUND")) { do_sound(&p); *pp = p; return; }
 	if (match_keyword(&p, "BEEP")) { beep(); *pp = p; return; }
 	if (match_keyword(&p, "CLS")) { lcd_clear(); *pp = p; return; }
@@ -1258,6 +1309,7 @@ void handle_input_line(char *line) {
 		ln = 0;
 		while (*p >= '0' && *p <= '9') { ln = ln * 10 + (*p - '0'); p++; }
 		skip_spaces(&p);
+		normalize_defsprite(p);
 		store_line(ln, p);
 		return;
 	}
