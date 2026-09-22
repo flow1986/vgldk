@@ -498,16 +498,30 @@ void do_load() {
 #define SERIAL_EOF 0x1a	// classic text-file EOF marker (CP/M etc.), used to end a CSAVE/CLOAD stream
 
 // Stream the whole program out as plain text lines over the parallel port
-// (softuart) - an external Arduino/ESP can just log these bytes to act as
-// a "cassette"/program store, no binary protocol needed.
-void do_csave() {
+// (softuart). Optional slot number (0-9, default 0) is sent as a 2-byte
+// prefix "S<digit>" first, so a listening device (see esp_basic_store/)
+// can automatically file it away without needing a web UI click at the
+// exact right moment - it just needs to log bytes after the prefix until
+// the 0x1A (EOF) byte.
+void do_csave(char **pp) {
+	char *p = *pp;
 	byte *q = program;
 	word ln, n;
 	char numbuf[7];
-	byte ni;
+	byte ni, slot;
 	char *s;
 
-	printf("CSAVE...\n");
+	slot = 0;
+	skip_spaces(&p);
+	if (*p >= '0' && *p <= '9') slot = (byte)parse_expr(&p);
+	if (slot > 9) slot = 9;
+
+	printf("CSAVE ");
+	print_int_signed((int)slot);
+	putchar('\n');
+
+	softuart_sendByte('S');
+	softuart_sendByte('0' + slot);
 	while (q < program + program_len) {
 		ln = q[0] | (q[1] << 8);
 		ni = 0;
@@ -523,24 +537,38 @@ void do_csave() {
 	}
 	softuart_sendByte(SERIAL_EOF);
 	printf("DONE\n");
+	*pp = p;
 }
 
 // Reads text lines from the parallel port (softuart) and feeds each one
-// through handle_input_line(), exactly as if it had been typed - so the
-// external device just needs to send back what CSAVE sent it, one line
-// at a time, ending with a 0x1A (EOF) byte. Press any key to abort.
-void do_cload() {
+// through handle_input_line(), exactly as if it had been typed. Sends an
+// "L<digit>" prefix first (see do_csave()) so a listening device knows
+// which of its slots to send back, then waits for it to stream the text,
+// ending with a 0x1A (EOF) byte. Press any key to abort while waiting.
+void do_cload(char **pp) {
+	char *p = *pp;
 	char linebuf[80];
-	byte li;
+	byte li, slot;
 	int c;
 
-	printf("CLOAD - waiting (any key=abort)\n");
+	slot = 0;
+	skip_spaces(&p);
+	if (*p >= '0' && *p <= '9') slot = (byte)parse_expr(&p);
+	if (slot > 9) slot = 9;
+
+	printf("CLOAD ");
+	print_int_signed((int)slot);
+	printf(" - waiting (any key=abort)\n");
+
+	softuart_sendByte('L');
+	softuart_sendByte('0' + slot);
+
 	do_new();
 	li = 0;
 	for (;;) {
 		c = softuart_receiveByte();
 		if (c < 0) {
-			if (keyboard_inkey() != KEY_CHARCODE_NONE) { printf("CANCELLED\n"); return; }
+			if (keyboard_inkey() != KEY_CHARCODE_NONE) { printf("CANCELLED\n"); *pp = p; return; }
 			continue;
 		}
 		if (c == SERIAL_EOF) break;
@@ -554,6 +582,7 @@ void do_cload() {
 		if (li < sizeof(linebuf) - 1) linebuf[li++] = (byte)c;
 	}
 	printf("LOADED\n");
+	*pp = p;
 }
 
 
@@ -862,8 +891,8 @@ void exec_statement(char **pp) {
 	if (match_keyword(&p, "NEW")) { do_new(); *pp = p; return; }
 	if (match_keyword(&p, "SAVE")) { do_save(); *pp = p; return; }
 	if (match_keyword(&p, "LOAD")) { do_load(); *pp = p; return; }
-	if (match_keyword(&p, "CSAVE")) { do_csave(); *pp = p; return; }
-	if (match_keyword(&p, "CLOAD")) { do_cload(); *pp = p; return; }
+	if (match_keyword(&p, "CSAVE")) { do_csave(&p); *pp = p; return; }
+	if (match_keyword(&p, "CLOAD")) { do_cload(&p); *pp = p; return; }
 
 	if (*p >= 'A' && *p <= 'Z') { do_let(&p); *pp = p; return; }
 

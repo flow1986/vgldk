@@ -91,7 +91,7 @@ Functions:
 | `PAUSE n`                                 | Busy-wait delay, roughly milliseconds (approximate, untuned)     |
 | `REM ...`                                 | Comment, rest of the line is ignored                             |
 | `END` / `STOP`                            | Stop the running program                                         |
-| `CSAVE` / `CLOAD`                         | Send/receive the program as text over the parallel port (serial) |
+| `CSAVE [n]` / `CLOAD [n]`                 | Send/receive the program as text over the parallel port, slot `n`=0-9 (default 0) |
 | `:`                                       | Separates multiple statements on one line                        |
 
 ## Immediate commands
@@ -107,8 +107,8 @@ program), except `LIST`/`NEW`/`SAVE`/`LOAD` which also work as statements:
 | `EDIT n`    | Re-open line `n` in the line editor instead of retyping it          |
 | `SAVE`      | Copy the current program into a backup RAM slot                    |
 | `LOAD`      | Restore the program from that backup slot                          |
-| `CSAVE`     | Send the program as text over the parallel port (serial)           |
-| `CLOAD`     | Receive a program as text over the parallel port (serial)          |
+| `CSAVE [n]` | Send the program as text over the parallel port, slot `n`=0-9 (default 0) |
+| `CLOAD [n]` | Receive a program as text over the parallel port, slot `n`=0-9 (default 0) |
 
 `SAVE`/`LOAD` are a lightweight backup/undo slot in RAM, **not** real
 EEPROM/filesystem persistence - there is currently no verified persistent
@@ -143,40 +143,45 @@ for keys in expressions, only their numeric codes.)
 
 ## Sending/receiving programs with CSAVE/CLOAD
 
-`CSAVE`/`CLOAD` stream the program as plain text over the parallel port,
-using the existing bit-banged `softuart` driver (same physical layer already
-proven for `make upload`/the monitor and CP/M examples). No special binary
-protocol - it's exactly the text you'd `LIST`, one line at a time, ending
-with a single `0x1A` (EOF) byte. Any 5V/3.3V TTL USB-serial adapter (FTDI,
-CP2102, ...) works - **no Arduino/ESP required**, though one obviously can
-just log/replay the same byte stream too if you want it to act as a small
-standalone "cassette".
+`CSAVE [n]`/`CLOAD [n]` stream the program as plain text over the parallel
+port, using the existing bit-banged `softuart` driver (same physical layer
+already proven for `make upload`/the monitor and CP/M examples). `n` is an
+optional slot number `0`-`9` (default `0`), sent as a 2-byte prefix
+(`S`/`L` + the digit) before the actual text - so an external device can
+tell which of several stored programs to save/load without needing a web
+UI click at the exact right moment (see `esp_basic_store/` below). Program
+text is exactly what you'd `LIST`, one line at a time, ending with a
+single `0x1A` (EOF) byte.
 
-1. Wire a USB-serial adapter to the parallel port (see
-   `include/arch/gl6000sl/softserial.h` for the full pinout):
-   * adapter RXD <-> any parallel port pin 2-9 (D0..D7)
-   * adapter TXD -> parallel port pin 11 (BUSY), through a ~1k resistor
-   * adapter GND <-> parallel port pin 18-25 (GND)
-2. On the PC: `pip install pyserial`, then use the helper script in this
-   folder (adjust `PORT`/`BAUD` at the top of the script if needed):
-   ```
-   python3 examples/basic/basic_serial.py receive myprogram.bas
-   ```
-3. On the VGL: type `CSAVE` and press Enter. The listing scrolls past on
-   both the VGL screen and the PC terminal; the script saves it to
-   `myprogram.bas` once it sees the EOF byte.
-4. To send it back (or a program you wrote/edited on the PC, as plain
-   `<linenumber> <text>` lines, one per line): type `CLOAD` on the VGL
-   first, *then* run:
-   ```
-   python3 examples/basic/basic_serial.py send myprogram.bas
-   ```
-   and press Enter at the script's prompt once `CLOAD` is waiting on the
-   VGL. Press any key on the VGL to abort a `CLOAD` that's waiting.
+Two ways to use this:
 
-This only works on real hardware (or anything that emulates the physical
-parallel port pins) - MAME does not emulate that wiring, so `make emu`
-cannot be used for `CSAVE`/`CLOAD` testing.
+* **`esp_basic_store/`** in this folder: an Arduino/ESP8266/ESP32 sketch
+  (written for a Wemos D1 Mini) that acts as a standalone 10-slot program
+  store with a WiFi + browser interface - wire it up once and leave it
+  running, no PC needed. See `esp_basic_store/README.md` for wiring and
+  setup.
+* **`basic_serial.py`** in this folder: a plain USB-serial adapter (FTDI,
+  CP2102, ... - **no microcontroller needed**) plus this PC-side helper
+  script. Good for one-off transfers to/from a PC:
+  1. Wire it up (see `include/arch/gl6000sl/softserial.h` for the full
+     pinout): adapter RXD <-> any parallel port pin 2-9 (D0..D7), adapter
+     TXD -> pin 11 (BUSY) through a ~1k resistor, adapter GND <-> pin
+     18-25 (GND).
+  2. `pip install pyserial`, then (adjust `PORT`/`BAUD` in the script if
+     needed):
+     ```
+     python3 examples/basic/basic_serial.py receive myprogram.bas
+     ```
+  3. On the VGL: type `CSAVE` and press Enter - the script saves the
+     stream to `myprogram.bas` once it sees the EOF byte.
+  4. To send a program back: type `CLOAD` on the VGL first, *then* run
+     `python3 examples/basic/basic_serial.py send myprogram.bas` and press
+     Enter at the script's prompt. Press any key on the VGL to abort a
+     `CLOAD` that's waiting.
+
+Either way, this only works on real hardware (or anything that emulates
+the physical parallel port pins) - MAME does not emulate that wiring, so
+`make emu` cannot be used for `CSAVE`/`CLOAD` testing.
 
 ## Design notes / limitations
 

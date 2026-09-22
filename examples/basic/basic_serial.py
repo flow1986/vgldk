@@ -3,11 +3,15 @@
 """
 Host-side helper for VGL BASIC's CSAVE/CLOAD.
 
-CSAVE sends the stored program as plain text lines over the parallel port
-(bit-banged softuart, see include/driver/softuart.h), terminated by a single
-0x1A (EOF) byte. CLOAD just reads text lines back in the same format - so
-receiving/sending a program from a PC is nothing more than logging/replaying
-that byte stream through a plain serial adapter.
+CSAVE sends a 2-byte prefix ('S' + a slot digit '0'-'9', see basic.c), then
+the stored program as plain text lines over the parallel port (bit-banged
+softuart, see include/driver/softuart.h), terminated by a single 0x1A (EOF)
+byte. CLOAD sends the same kind of prefix ('L' + slot digit) and then waits
+to receive the program back in the same format - so receiving/sending a
+program from a PC is nothing more than logging/replaying that byte stream
+through a plain serial adapter (this script just discards the 2-byte prefix,
+since a plain USB-serial adapter has no concept of "slots" - see
+esp_basic_store/ if you want an actual 10-slot store instead of a PC).
 
 Wiring (see include/arch/gl6000sl/softserial.h for the full pinout):
 	USB-serial adapter (5V/3.3V TTL, e.g. FTDI/CP2102)   VGL parallel port
@@ -39,11 +43,23 @@ EOF_BYTE = 0x1a	# Matches SERIAL_EOF in basic.c
 SEND_DELAY = 0.01
 
 
+def read_byte_blocking(ser):
+	"Read one byte, retrying forever (ser.read(1) can return empty on timeout)"
+	while True:
+		b = ser.read(1)
+		if b:
+			return b[0]
+
+
 def receive(path):
 	ser = serial.Serial(PORT, BAUD, timeout=1)
 	print('Waiting for data... (run CSAVE on the VGL now, Ctrl+C to abort)')
 	data = bytearray()
 	try:
+		cmd = read_byte_blocking(ser)
+		slot = read_byte_blocking(ser)
+		if cmd == ord('S'):
+			print('CSAVE, slot %s' % chr(slot))
 		while True:
 			b = ser.read(1)
 			if not b:
@@ -67,6 +83,8 @@ def send(path):
 	ser = serial.Serial(PORT, BAUD, timeout=1)
 	print('Run CLOAD on the VGL now, then press Enter here...')
 	input()
+	# The VGL sends its own 'L'+slot-digit prefix right when CLOAD starts;
+	# we don't need to read it, it's simply left unread in the OS buffer.
 	for b in data:
 		ser.write(bytes([b]))
 		time.sleep(SEND_DELAY)
