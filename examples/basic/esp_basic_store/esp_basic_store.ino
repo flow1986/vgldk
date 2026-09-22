@@ -32,8 +32,6 @@
 	NOT tested on real hardware yet (no ESP8266/ESP32 toolchain available
 	in the dev sandbox this was written in) - please report back if the
 	serial timing/level-shifting notes in the README need adjusting.
-
-	2026-09-22 Bernhard "HotKey" Slawik
 */
 
 #define SERIAL_BAUD 9600	// Must match SOFTUART_BAUD in examples/basic/basic.c

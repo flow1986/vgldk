@@ -5,8 +5,6 @@
 	- Turn-based movement: player moves one tile (WASD), then every monster
 	  moves one step along its own fixed patrol path
 	- Bumping into a monster triggers a very simplified turn-based fight
-
-	2026-09-18 Bernhard "HotKey" Slawik
 */
 
 #include <vgldk.h>

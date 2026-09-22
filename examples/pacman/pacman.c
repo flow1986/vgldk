@@ -10,8 +10,6 @@
 	- A symmetric maze with a central ghost house (with exit) and left/right
 	  wrap-around tunnels, closer to the original Pac-Man layout.
 	- Eat all dots to win. Touching a ghost ends the game.
-
-	2026-09-18 Bernhard "HotKey" Slawik
 */
 
 #include <vgldk.h>

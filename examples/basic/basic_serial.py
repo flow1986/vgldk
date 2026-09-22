@@ -25,8 +25,6 @@ Usage:
 	python3 basic_serial.py send myprogram.bas      # run CLOAD on the VGL, then start this
 
 Requires: pip install pyserial
-
-2026-09-22 Bernhard "HotKey" Slawik
 """
 
 import sys

@@ -34,8 +34,6 @@
 	act as an external "cassette"/program store. No special protocol:
 	it's just the same text you'd type at the prompt, one line at a time,
 	terminated with a 0x1A (EOF) byte.
-
-	2026-09-22 Bernhard "HotKey" Slawik
 */
 
 #include <vgldk.h>
