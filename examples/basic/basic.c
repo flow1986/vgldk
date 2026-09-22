@@ -147,13 +147,6 @@ byte key_current() {
 	return key_last;
 }
 
-byte basic_keyboard_inkey() {
-	byte key = keyboard_inkey();
-	if (key == 204) return '<';
-	if (key == 206) return '>';
-	return key;
-}
-
 byte check_break() {
 	keyboard_update();
 	if (keyboard_buffer_in != keyboard_buffer_out &&
@@ -649,8 +642,6 @@ void do_new() {
 void do_list() {
 	byte *q = program;
 	word ln;
-	byte page_lines = 0;
-	byte key;
 	while (q < program + program_len) {
 		ln = q[0] | (q[1] << 8);
 		print_int_signed((int)ln);
@@ -658,16 +649,6 @@ void do_list() {
 		printf((char *)(q + 2));
 		putchar('\n');
 		q += entry_len(q);
-		page_lines++;
-		if (page_lines >= 15 && q < program + program_len) {
-			printf("-- MORE --\n");
-			for (;;) {
-				key = basic_keyboard_inkey();
-				if (key != KEY_CHARCODE_NONE) break;
-			}
-			if (key == KEY_ESCAPE) break;
-			page_lines = 0;
-		}
 	}
 }
 
@@ -762,7 +743,7 @@ void do_cload(char **pp) {
 	for (;;) {
 		c = softuart_receiveByte();
 		if (c < 0) {
-			if (basic_keyboard_inkey() != KEY_CHARCODE_NONE) { printf("CANCELLED\n"); *pp = p; return; }
+			if (keyboard_inkey() != KEY_CHARCODE_NONE) { printf("CANCELLED\n"); *pp = p; return; }
 			continue;
 		}
 		if (c == SERIAL_EOF) break;
@@ -1220,7 +1201,9 @@ void input_line(char *buf, byte maxlen) {
 
 		if (blink_on) invert_cell(start_col + cur, start_row);
 
-		c = basic_keyboard_inkey();
+		c = keyboard_inkey();
+		if (c == 204) c = '<';
+		if (c == 206) c = '>';
 
 		if (blink_on) invert_cell(start_col + cur, start_row);	// undraw before redrawing text next loop
 

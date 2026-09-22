@@ -138,8 +138,36 @@ Minimal manual sprite test (not embedded in the cart):
 This deliberately short example moves the sprite automatically from left to
 right and is intended to be typed manually on the VTech.
 
-## Follow-up: paged LIST output
+## Failed experiments and current baseline
 
-`LIST` now pauses after every 15 program lines and displays `-- MORE --`.
-Any key continues the listing; the interrupt/ESC key stops it. This prevents
-long programs from scrolling past the entire screen before they can be read.
+The following experiments caused problems on the real VTech and were reverted:
+
+* Increasing `PROGRAM_SIZE` from 2048 to 4096 was unsafe. Because both
+  `program[]` and `saved_program[]` are allocated, this consumed 8192 bytes
+  before stack and runtime data. The data area reached into or too close to
+  the LCD/stack region. A temporary 3072-byte version built, but was not
+  reliable on hardware. The stable baseline is 2048 bytes for each buffer.
+* Preloading a Pacman or minimal sprite program into the normal `saved_program`
+  LOAD backup made the cartridge unusable or prevented reliable startup. No
+  separate LOAD area exists: `LOAD` uses the same RAM backup that `SAVE`
+  writes. The cartridge should start with an empty program and no seeded
+  backup unless this is tested very carefully on hardware.
+* Storing BASIC keywords as one-byte tokens was attempted first for sprite
+  commands and then for all statements. The tokenized versions caused
+  failures and were completely removed. Programs are currently stored as
+  plain text. The short sprite spellings `DEFSP`, `DRASP`, and `MOVSP` remain
+  as ordinary textual commands; they are not tokens.
+* A paged `LIST` implementation was attempted (`-- MORE --` after 15 lines,
+  waiting for a key and allowing ESC to abort). This also caused the keyboard
+  to stop working or made the program appear to hang at startup. It was
+  removed. `LIST` is currently a continuous, non-blocking output operation
+  with no range parameters.
+* A `LIST first,last` range implementation was attempted and reverted after it
+  failed on hardware. The supported command is again only plain `LIST`.
+
+The most recent build after removing the LIST paging/range changes succeeds as
+a 32KB cartridge. The known compiler warning remains in
+`include/arch/gl6000sl/lcd.h:332`; it is unrelated to these BASIC experiments.
+MAME could not be used for a hardware check in the session because the
+required machine/ROM setup was unavailable, so the VTech itself remains the
+authoritative test target for keyboard and startup regressions.

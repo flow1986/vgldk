@@ -102,7 +102,7 @@ program), except `LIST`/`NEW`/`SAVE`/`LOAD` which also work as statements:
 | Command     | Description                                                       |
 |-------------|--------------------------------------------------------------------|
 | `RUN`       | Start executing the stored program from the lowest line number     |
-| `LIST`      | List the stored program, pausing every 15 lines at `-- MORE --`   |
+| `LIST`      | List the stored program                                            |
 | `NEW`       | Erase the stored program and reset the FOR/GOSUB stacks            |
 | `EDIT n`    | Re-open line `n` in the line editor instead of retyping it          |
 | `SAVE`      | Copy the current program into a backup RAM slot                    |
@@ -116,9 +116,6 @@ storage driver for this hardware. The program (and the SAVE slot) is only
 as safe as the machine's RAM stays powered. `CSAVE`/`CLOAD` (see below) are
 the way to get a program off/onto the device for real, e.g. onto an
 Arduino/ESP.
-
-`LIST` pauses after every 15 lines and waits for a key before continuing.
-Press the interrupt/ESC key at `-- MORE --` to stop listing early.
 
 ## Real-time input for games
 
